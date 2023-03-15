@@ -289,6 +289,7 @@ static void initialize_emu_ram() {
     memcpy(&emu_ram[FONT_START_BYTE], &font, 80*sizeof(*font));
 }
 
+// load rom file into emu_ram
 void load_rom(char *rom) {
     FILE *rom_file = fopen(rom, "rb");
     char *rom_data;
@@ -299,15 +300,8 @@ void load_rom(char *rom) {
     memcpy(&emu_ram[PROGRAM_START_BYTE], rom_data, rom_size);
 }
 
+// runs one Chip8 instruction at the current PC
 void run_next_instruction() {
-  //APP_LOG(APP_LOG_LEVEL_DEBUG, "handling execute timer");
-
-  //APP_LOG(APP_LOG_LEVEL_DEBUG, "Debug loop: %d", debug_loop);
-  //debug_loop += 1;
-
-  //layer_mark_dirty(s_canvas_layer);
-  //update_frame(NULL);
-
   // fetch (CAREFUL: CHIP8 is big endian C is little endian)
   uint8_t byte1 = emu_ram[PC];
   uint8_t byte2 = emu_ram[PC + 1];
@@ -326,24 +320,19 @@ void run_next_instruction() {
     {
       if (instruction == 0x00E0) {
         // Clear screen
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "Clearing Screen");
         for (int i = 0; i < VRAM_SIZE; i++) {
           emu_ram[VRAM_START_BYTE + i] = 0;
         }
         if (UNHOOK_FPS == 0) {
           draw_frame();
         }
-        //printf("Drew frame from Clear Screen instruction\n");
       }
       else if (instruction == 0x00EE) {
         // Return
         uint16_t NNN = emu_stack_pop();
         PC = NNN;
-        //printf("Return from subroutine\n");
       }
       else {
-        //APP_LOG(APP_LOG_LEVEL_ERROR, "PC: %d, ROM: %d", PC - 2, (PC - 2) - 0x200);
-        //APP_LOG(APP_LOG_LEVEL_ERROR, "Invalid instruction: %d", instruction);
         printf("Invalid instruction %d\n", instruction);
       }
       break;
@@ -353,7 +342,6 @@ void run_next_instruction() {
       // Jump
       uint16_t NNN = instruction & 0b0000111111111111;
       PC = NNN;
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "Jump to: %d (%d in ROM) from %d", NNN, NNN - 0x200, PC -2);
       break;
     }
     case 0x2:
@@ -362,7 +350,6 @@ void run_next_instruction() {
       uint16_t NNN = instruction & 0b0000111111111111;
       emu_stack_push(PC);
       PC = NNN;
-      //printf("Goto subroutine\n");
       break;
     }
     case 0x3:
@@ -398,11 +385,8 @@ void run_next_instruction() {
     case 0x6:
     {
       // Set Register
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "Instuction: %d", instruction);
       uint16_t X = (instruction & 0b0000111100000000) >> 8;
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "X: %d", X);
       uint8_t NN = instruction & 0b0000000011111111;
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "NN: %d", NN);
       V[X] = NN;
       break;
     }
@@ -569,15 +553,9 @@ void run_next_instruction() {
       uint16_t Y = (instruction & 0b0000000011110000) >> 4;
       uint16_t N = instruction & 0b0000000000001111;
 
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "X: %d, Y: %d", X, Y);
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "V[X]: %d, V[Y]: %d", V[X], V[Y]);
-
       uint16_t coord_x = V[X] % SCREEN_WIDTH;
       uint16_t coord_y = V[Y] % SCREEN_HEIGHT;
       V[0xF] = 0;
-
-
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "Setting pixels");
 
 
       for (int row = 0; row < N; row++) {
@@ -604,51 +582,9 @@ void run_next_instruction() {
       }
 
 
-      /*
-      for (int row = 0; row < N; row++) {
-        uint8_t sprite_byte = emu_ram[I + row];
-        
-        for (uint8_t bit_offset = 0; bit_offset < 8; bit_offset++) {
-          if(sprite_byte >> (7 - bit_offset) & 0b00000001) {
-            // This bit should be flipped
-            uint8_t *vram_byte = &emu_ram[8 * (coord_y + row) + 0xF00 + ((coord_x + bit_offset) / 8)];
-            APP_LOG(APP_LOG_LEVEL_DEBUG, "vram_byte: %d", 8 * (coord_y + row) + 0xF00 + ((coord_x + bit_offset) / 8));
-            if(*vram_byte >> (7 - bit_offset + coord_x % 8) & 0b00000001) {
-              // Bit was already on
-              *vram_byte ^= 1UL << (7 - bit_offset + coord_x % 8);
-            }
-            else {
-              // Bit was off
-              *vram_byte ^= 1UL << (7 - bit_offset + coord_x % 8);
-            }
-          }
-        }
-      
-      
-      }
-      */
-
-      //emu_ram[0xF00] = 0b11111111;
-      //emu_ram[0xF01] = 0b11111111;
-
-      for (int y = 0; y < 3; y++) {
-        for (int x = 0; x < SCREEN_WIDTH; x++) {
-          //APP_LOG(APP_LOG_LEVEL_DEBUG, "Ram byte %d:%d contains X:%d Y:%d", get_emu_ram_pixel_byte(x, y), get_emu_ram_pixel_byte_offset(x), x, y);
-          //APP_LOG(APP_LOG_LEVEL_DEBUG, "Pixel X:%d Y:%d is %d", x, y, get_emu_ram_pixel(get_emu_ram_pixel_byte(x, y), get_emu_ram_pixel_byte_offset(x)));
-        }
-      }
-
-      //int x = 63;
-      //int y = 31;
-      //set_emu_ram_pixel(get_emu_ram_pixel_byte(x, y), get_emu_ram_pixel_byte_offset(x), 1);
-
-      //update_frame(NULL);
       if (UNHOOK_FPS == 0) {
         draw_frame();
       }
-      //printf("Drew frame from Display instruction\n");
-
-
 
       break;
     }
@@ -670,7 +606,6 @@ void run_next_instruction() {
       }
       else if (NN == 0xA1) {
         // skip if not pressed
-        //printf("V[X]: %d State: %d\n", V[X], keypad_states[V[X]]);
         if (keypad_states[V[X]] == 0) {
             PC += 2;
         }
@@ -760,7 +695,6 @@ void run_next_instruction() {
           emu_ram[I + 1] = D1;
           emu_ram[I + 2] = D2;
 
-          //printf("V[X]: %d D0: %d D1: %d D2: %d\n", V[X], D0, D1, D2);
           break;
         }
 
@@ -802,45 +736,18 @@ void run_next_instruction() {
       //APP_LOG(APP_LOG_LEVEL_ERROR, "Invalid opcode: %d", opcode);
       printf("Invalid opcode: %d\n", opcode);
   }
-
-  //uint16_t little = reverse16(instruction);
-
-
-  //APP_LOG(APP_LOG_LEVEL_DEBUG, "Instruction %d: %d, Opcode: %d", PC - 2, instruction, opcode);
-  //APP_LOG(APP_LOG_LEVEL_DEBUG, "Instruction %d: %d", PC -2, little);
-
-
-  //app_timer_register(10, (AppTimerCallback)handle_execute_timer, NULL);
 }
 
+// Set a pixel in the SDL pixel array that is drawn to the screen
 void set_pixel_color(uint16_t x, uint16_t y, uint32_t color) {
     int r = screen_pixels[y * SCREEN_WIDTH * 4 + x * 4 + 0] = (uint8_t)((color & 0xFF000000) >> 24); // r
     int g = screen_pixels[y * SCREEN_WIDTH * 4 + x * 4 + 1] = (uint8_t)((color & 0x00FF0000) >> 16); // g
     int b = screen_pixels[y * SCREEN_WIDTH * 4 + x * 4 + 2] = (uint8_t)((color & 0x0000FF00) >> 8); // b
     int a = screen_pixels[y * SCREEN_WIDTH * 4 + x * 4 + 3] = (uint8_t)((color & 0x000000FF) >> 0); // a
-
-    //printf("R: %d G: %d B: %d A: %d\n", r, g, b, a);
 }
 
+// update the contents of the SDL pixel array using the contents of the emulated VRAM
 void update_screen_pixels() {
-    // screen_pixels[4 * 0 + 1] = 255;
-    // screen_pixels[4 * 1 + 1] = 255;
-    // screen_pixels[4 * 2 + 1] = 255;
-    // pixels[46400 + 4 * 0 + 0] = 255;
-    // pixels[46400 + 4 * 1 + 1] = 255;
-    // pixels[46400 + 4 * 2 + 2] = 255;
-    // pixels[46400 + 4 * 3 + 0] = 255;
-    // pixels[46400 + 4 * 4 + 1] = 255;
-    // pixels[46400 + 4 * 5 + 2] = 255;
-    // pixels[WIN_WIDTH * WIN_HEIGHT * 4 - 4 * 1] = 255;
-    // pixels[WIN_WIDTH * WIN_HEIGHT * 4 - 4 * 2] = 255;
-    // pixels[WIN_WIDTH * WIN_HEIGHT * 4 - 4 * 3] = 255;
-    // screen_pixels[SCREEN_WIDTH * SCREEN_HEIGHT * 4 - 4 * 1] = rand() % 255;
-    // screen_pixels[SCREEN_WIDTH * SCREEN_HEIGHT * 4 - 4 * 1 + 1] = rand() % 255;
-    // screen_pixels[SCREEN_WIDTH * SCREEN_HEIGHT * 4 - 4 * 1 + 2] = rand() % 255;
-    //pixels[SCREEN_WIDTH * SCREEN_HEIGHT * 4 - 4 * 2] = 255;
-    //pixels[SCREEN_WIDTH * SCREEN_HEIGHT * 4 - 4 * 3] = 255;
-
     uint16_t x = 0;
     uint16_t y = 0;
 
@@ -856,7 +763,6 @@ void update_screen_pixels() {
 
             if(emu_ram[VRAM_START_BYTE + vram_offset] >> (7 - bit_offset) & 0b00000001) {
                 pixel_color = palette[1];
-                //printf("Setting on pixel at %d, %d\n", x, y);
             }
             else {
                 pixel_color = palette[0];
@@ -865,13 +771,6 @@ void update_screen_pixels() {
             x++;
         }
     }
-
-    // for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT * 4 * sizeof(uint8_t); i++) {
-    //     screen_pixels[i] = 255;
-    // }
-
-    // screen_pixels[SCREEN_WIDTH * SCREEN_HEIGHT * 4 * sizeof(uint8_t) - 2] = 0;
-    // screen_pixels[0] = 0;
 }
 
 void update_screen_texture() {
@@ -887,11 +786,8 @@ void update_screen_texture() {
     SDL_UnlockTexture(screen_tex);
 }
 
+// Draws the SDL pixel array to the screen
 void draw_frame() {
-    // NOTE: need to impliment a max fps limit here
-
-    //printf("Draw Frame\n");
-
     update_screen_pixels(screen_pixels);
 
     update_screen_texture(screen_tex, screen_pixels);
@@ -899,12 +795,7 @@ void draw_frame() {
     SDL_RenderClear(screen_ren);
     SDL_RenderCopy(screen_ren, screen_tex, NULL, NULL);
     SDL_RenderPresent(screen_ren);
-    //SDL_Delay(1000 / FPS);
 }
-
-// int timespec_subtract(struct timespec *result, struct timespec *x, struct timespec *y) {
-//     if (x->tv)
-// }
 
 int timespec_subtract (struct timespec *result, struct timespec *x, struct timespec *y)
 {
@@ -1036,26 +927,6 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
-	// SDL_Surface* bmp = SDL_LoadBMP("src/grumpy-cat.bmp");
-	// if (bmp == NULL) {
-	// 	fprintf(stderr, "SDL_LoadBMP Error: %s\n", SDL_GetError());
-	// 	SDL_DestroyRenderer(ren);
-	// 	SDL_DestroyWindow(win);
-	// 	SDL_Quit();
-	// 	return EXIT_FAILURE;
-	// }
-
-	// SDL_Texture* tex = SDL_CreateTextureFromSurface(ren, bmp);
-	// if (tex == NULL) {
-	// 	fprintf(stderr, "SDL_CreateTextureFromSurface Error: %s\n", SDL_GetError());
-	// 	SDL_FreeSurface(bmp);
-	// 	SDL_DestroyRenderer(ren);
-	// 	SDL_DestroyWindow(win);
-	// 	SDL_Quit();
-	// 	return EXIT_FAILURE;
-	// }
-	// SDL_FreeSurface(bmp);
-
 
     // create texture
     screen_tex = SDL_CreateTexture(
@@ -1069,9 +940,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // array of pixels
-    //uint8_t pixels[SCREEN_WIDTH * SCREEN_HEIGHT * 4] = {0};
-    //int count = 0;
+    // array of pixels of the screen
     int pixel_array_size = SCREEN_WIDTH * SCREEN_HEIGHT * 4 * sizeof(uint8_t);
     screen_pixels = malloc(pixel_array_size);
     for (int y = 0; y < (SCREEN_HEIGHT); y++) {
@@ -1082,16 +951,10 @@ int main(int argc, char *argv[])
             }
         }
     }
-    // for (int i = 0; i < pixel_array_size; i++) {
-    //     screen_pixels[i] = 0;
-    // }
-
-    //printf("%d\n", pixel_array_size);
-    //printf("%d\n", count);
 
     initialize_emu_ram();
 
-    load_rom("src/Space Invaders [David Winter].ch8");
+    load_rom(rom_path);
     
 
     //Main loop flag
@@ -1100,8 +963,6 @@ int main(int argc, char *argv[])
     //Event handler
     SDL_Event e;
 
-
-    //clockid_t realtime_clock = CLOCK_REALTIME;
 
     struct timespec last_instruction;
     get_clock_time(&last_instruction);
@@ -1121,12 +982,6 @@ int main(int argc, char *argv[])
     struct timespec frame_current;
 
 
-
-    //clock_t last_instruction = clock();
-    //clock_t current_instruction;
-
-    // clock_t ips_counter_last = clock();
-    // clock_t ips_counter_current;
     int ips_count = 0;
     int timer_count = 0;
     int frame_count = 0;
@@ -1139,34 +994,6 @@ int main(int argc, char *argv[])
 
 	while(!quit) {
         while (SDL_PollEvent( &e ) != 0) {
-            // if(e.type == SDL_QUIT) {
-            //     quit = true;
-            // }
-            // else if (e.type = SDL_KEYDOWN) {
-            //     if (e.key.keysym.scancode == SDL_SCANCODE_D) {
-            //         //printf("D pressed\n");
-            //         //dDown = 1;
-            //     }
-            // }
-            // else if (e.type == SDL_KEYUP) {
-            //     printf("Keyup\n");
-            //     //printf("Key up: %d\n", e.key.keysym.scancode);
-            //     if (e.key.keysym.scancode == SDL_SCANCODE_D) {
-            //         printf("D released\n");
-            //         //dDown = 0;
-            //     }
-            // }
-
-
-            // Note for later: keep an array for the state all 16 keypad values. 
-            // Have a last-pressed variable that is set whenever a key in the array is switched to a down state
-                // Try: if multiple keys get pressed down just keep overwiting this variable
-                // Try: only start updating the last-pressed variable when FF0A is actually called
-                    // this means FX0A will probably have to loop at least once
-                    // this means that FX0A will only trigger on a keydown and not if it is already down (LOOK UP IF THIS IS THE CORRECT BEHAVIOUR)
-                        // original hardware did it only on key up
-                        // whatever is chosen make sure it only fires once
-                        // maybe make chip8 program to debug and count keypresses
             switch(e.type) {
                 case SDL_QUIT:
                     quit = true;
@@ -1298,33 +1125,10 @@ int main(int argc, char *argv[])
                     }
                     break;
                 
-            }
-            // printf("Keypad: \n");
-            // printf("%d %d %d %d\n", keypad_states[0x1], keypad_states[0x2], keypad_states[0x3], keypad_states[0xC]);
-            // printf("%d %d %d %d\n", keypad_states[0x4], keypad_states[0x5], keypad_states[0x6], keypad_states[0xD]);
-            // printf("%d %d %d %d\n", keypad_states[0x7], keypad_states[0x8], keypad_states[0x9], keypad_states[0xE]);
-            // printf("%d %d %d %d\n", keypad_states[0xA], keypad_states[0x0], keypad_states[0xB], keypad_states[0xF]);
-
-
-            // Note for later: use scancodes instead. keep the current state of all keys in a variable + some kind of last-pressed variable for FX0A in some way
-            // else if (e.type == SDL_KEYDOWN) {
-            //     if (e.key.keysym.scancode == SDL_SCANCODE_D) {
-            //         printf("D pressed\n");
-            //     }
-            // }
-
-            // else if (e.type == SDL_KEYUP) {
-            //     if (e.key.keysym.sym == SDL_SCANCODE_D) {
-            //         printf("D released\n");
-            //     }
-            // }
-
-            
+            }  
         }
 
         current_keyboard = (uint8_t*) SDL_GetKeyboardState(NULL);
-
-        //printf("D: %d prevD: %d\n", current_keyboard[SDL_SCANCODE_D], previous_keyboard[SDL_SCANCODE_D]);
 
         // process changes
         if (current_keyboard[SDL_SCANCODE_D] && !current_keyboard[SDL_SCANCODE_D]) {
@@ -1333,77 +1137,9 @@ int main(int argc, char *argv[])
 
         previous_keyboard = current_keyboard;
 
-        //draw_frame();
-        //SDL_Delay();
-        //sleep();
-
-        //printf("ticks: %d", SDL_GetTicks64())
-
-        // struct timespec ts;
-        // timespec_get(&ts, TIME_UTC);
-        // char buff[100];
-        // strftime(buff, sizeof buff, "%D %T", gmtime(&ts.tv_sec));
-        // printf("Current time: %s.%09ld UTC\n", buff, ts.tv_nsec);
-        // SDL_Delay(1000);
-
-        // struct timeval time;
-        // gettimeofday(&time, NULL);
-
-        // long time = time.tv_usec * 1000 + time.tv_usec / 1000;
-
-        // struct timespec start, stop;
-        // double accum;
-
-        // if( clock_gettime( CLOCK_REALTIME, &start) == -1 ) {
-        // perror( "clock gettime" );
-        // return EXIT_FAILURE;
-        //}
-
-        // clock_t time = clock();
-        // printf("Time: %f\n", (double) time / CLOCKS_PER_SEC);
-
-
-
-        // struct timespec ts;
-        // timespec_get(&ts, TIME_UTC);
-        // char buff[100];
-        // strftime(buff, sizeof buff, "%D %T", gmtime(&ts.tv_sec));
-        // printf("Current time: %s.%09ld UTC\n", buff, ts.tv_nsec);
-
-
-
-        // struct timespec start, finish, delta;
-        // clock_gettime(CLOCK_REALTIME, &start);
-
-        //struct timespec ts;
-
-        //char *name = "test";
-
-        // if (clock_gettime(clockVar, &ts) == -1) {
-        //     perror("clock_gettime");
-        //     exit(EXIT_FAILURE);
-        // }
-
-        
-        
-        //printf("%-15s: %10ld.%03ld (", name, (long) ts.tv_sec, ts.tv_nsec / 1000000);
-
-
-
-
-
-        //current_instruction = clock();
-        //double delta_time = (double) (current_instruction - last_instruction) / CLOCKS_PER_SEC;
-        //printf("Delta time: %f\n", delta_time);
-
         get_clock_time(&current_instruction);
         struct timespec delta_time;
         timespec_subtract(&delta_time, &current_instruction, &last_instruction);
-
-        // printf("Inst delta time: %ld %ld\n", (long)delta_time.tv_sec, (long)delta_time.tv_nsec);
-        // printf("Inst current time: %ld %f\n", (long)current_instruction.tv_sec, (double)current_instruction.tv_nsec / 1000000);
-        // printf("Inst last time: %ld %f\n", (long)last_instruction.tv_sec, (double)last_instruction.tv_nsec / 1000000);
-
 
         // test timespec
         struct timespec test_time_end;
@@ -1413,63 +1149,33 @@ int main(int argc, char *argv[])
         test_time_start.tv_sec = 1676173112;
         test_time_start.tv_nsec = 934113200;
         struct timespec test_delta_time;
-        //printf("Test start time before: %ld %f\n", (long)test_time_start.tv_sec, (double)test_time_start.tv_nsec / 1000000);
         timespec_subtract(&test_delta_time, &test_time_end, & test_time_start);
-
-        // printf("Test delta time: %ld %f\n", (long)test_delta_time.tv_sec, (double)test_delta_time.tv_nsec / 1000000);
-        // printf("Test end time: %ld %f\n", (long)test_time_end.tv_sec, (double)test_time_end.tv_nsec / 1000000);
-        // printf("Test start time: %ld %f\n", (long)test_time_start.tv_sec, (double)test_time_start.tv_nsec / 1000000);
-
-
-        
 
 
         // still only millisecond precision, so IPS can only be 500 or 1000
         if(delta_time.tv_nsec >= ((long)1000000000 / IPS) || (long)delta_time.tv_sec >= 1) {
             run_next_instruction();
-            //last_instruction = clock();
             get_clock_time(&last_instruction);
             ips_count++;
         }
-
-        // ips_counter_current = clock();
-        // double delta_time_ips = (double) (ips_counter_current - ips_counter_last) / CLOCKS_PER_SEC;
 
         get_clock_time(&ips_counter_current);
         struct timespec delta_time_ips;
         timespec_subtract(&delta_time_ips, &ips_counter_current, &ips_counter_last);
 
-        //get_clock_time(&ips_counter_current);
-
-        // printf("IPS delta time: %ld %f\n", (long)delta_time_ips.tv_sec, (double)delta_time_ips.tv_nsec / 1000000);
-        // printf("IPS current time: %ld %f\n", (long)ips_counter_current.tv_sec, (double)ips_counter_current.tv_nsec / 1000000);
-        // printf("IPS last time: %ld %f\n", (long)ips_counter_last.tv_sec, (double)ips_counter_last.tv_nsec / 1000000);
 
         if ((long)delta_time_ips.tv_sec >= 1) {
             printf("IPS: %d\n", ips_count);
-            //printf("Current clock: %f\n", (double) current_instruction);
-            //ips_counter_last = clock();
+
             get_clock_time(&ips_counter_last);
             ips_count = 0;
-            //printf("Time: %ld %f\n", (long)ts.tv_sec, (double)ts.tv_nsec / 1000000);
 
             printf("Timer: %d\n", timer_count);
             timer_count = 0;
 
             printf("FPS: %d\n", frame_count);
             frame_count = 0;
-
-
-
-            //struct timespec test_windows_time;
-            //struct timespec test_normal_time;
-            //gettimeofday(&test_windows_time);
-            //get_clock_time(&test_normal_time);
-            //printf("Windows time: %ld %f\n", (long)test_windows_time.tv_sec, test_windows_time.tv_nsec / (double)10000000);
-            //printf("Normal time: %ld %f\n", (long)test_normal_time.tv_sec, test_normal_time.tv_nsec / (double)1000000000);
         }
-
-
 
 
         get_clock_time(&timer_current);
@@ -1486,9 +1192,6 @@ int main(int argc, char *argv[])
 
 
         if (UNHOOK_FPS == 1) {
-            // TODO: create another time if here for drawing frames
-            // Create a global variable for detaching frame rate from instructions and only run this if true
-                // make sure draw/clear instructions don't draw a frame when this variable is true
             get_clock_time(&frame_current);
             struct timespec delta_time_frame;
             timespec_subtract(&delta_time_frame, &frame_current, &frame_last);
@@ -1500,8 +1203,6 @@ int main(int argc, char *argv[])
                 frame_count++;
             }
         }
-
-        //SDL_Delay(1000 / IPS);
 	}
 
 	SDL_DestroyTexture(screen_tex);
