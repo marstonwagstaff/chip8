@@ -12,39 +12,42 @@
 #include <Windows.h>
 #endif // _WIN32_
 
-#define SCREEN_WIDTH 64
-#define SCREEN_HEIGHT 32
+int SCREEN_WIDTH;
+int SCREEN_HEIGHT;
 
-#define RAM_SIZE 4096
-#define VRAM_SIZE (SCREEN_WIDTH * SCREEN_HEIGHT / 8) // vram size in bytes
-#define VRAM_START_BYTE 0xF00 // the byte in emu_ram where vram starts
-#define FONT_START_BYTE 0x050 // the byte in emu_ram where font data starts
+char *rom_path;
 
-#define FPS 60 // frames per second
-#define IPS 700 // instructions per second
-#define TIMER_FREQUENCY 60 // number of times the timers decrement in a second
-#define UNHOOK_FPS 0 // refreshes the screen FPS times per second instead of every draw/clear command
+int RAM_SIZE;
+int VRAM_SIZE; // vram size in bytes
+int VRAM_START_BYTE; // the byte in emu_ram where vram starts
+int FONT_START_BYTE; // the byte in emu_ram where font data starts
 
-uint32_t palette[2] = {0x000000FF, 0xFFFF00FF}; // RGBA values for the two screen colours
+int FPS; // frames per second (when FPS is unhooked)
+int IPS; // number of chip8 instructions per second
+int TIMER_FREQUENCY; // number of times the timers decrement in a second
+int UNHOOK_FPS; // when set to 1, refreshes the screen FPS times per second instead of every draw/clear command
 
-uint8_t emu_ram[RAM_SIZE];
-#define emu_stack_max 16
-static uint16_t emu_stack[emu_stack_max];
-static int emu_stack_top = -1;
+uint32_t *palette; // RGBA values for the two screen colours
 
-#define PROGRAM_START_BYTE 0x200 // the emu_ram address where the program is loaded and started from
-static uint16_t PC = PROGRAM_START_BYTE;
+uint8_t *emu_ram;
 
-static uint8_t delay_timer = 255;
-static uint8_t sound_timer = 255;   // sound not implimented. Maybe these timers should start at 0?
+int emu_stack_max;
+uint16_t *emu_stack;
+int emu_stack_top;
 
-static uint16_t I;
+int PROGRAM_START_BYTE; // the emu_ram address where the program is loaded and started from
+uint16_t PC;
 
-static uint8_t V[16];
+uint8_t delay_timer;
+uint8_t sound_timer;   // sound not implimented
 
-#define COPY_SHIFT 0 // defines if VY should be copied to VX before a shift instruction
-#define JUMP_OFFSET_MODE 0 // defines whether to use the old behavior (0) or new behaviour (1) for the BNNN instruction
-#define LOAD_STORE_MODE 1 // defines whether to use the old behavior (0) or new behavior (1) for the FX55 and FX65 instructions
+uint16_t I;
+
+uint8_t *V;
+
+int COPY_SHIFT = 0; // defines if VY should be copied to VX before a shift instruction
+int JUMP_OFFSET_MODE = 0; // defines whether to use the old behavior (0) or new behaviour (1) for the BNNN instruction
+int LOAD_STORE_MODE = 1; // defines whether to use the old behavior (0) or new behavior (1) for the FX55 and FX65 instructions
 
 static uint8_t font[80] = {
   0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -64,6 +67,39 @@ static uint8_t font[80] = {
 0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
 0xF0, 0x80, 0xF0, 0x80, 0x80 // F
 };
+
+void initialize_settings() {
+    SCREEN_WIDTH = 64;
+    SCREEN_HEIGHT = 32;
+
+    RAM_SIZE = 4096;
+    VRAM_SIZE =  (SCREEN_WIDTH * SCREEN_HEIGHT / 8);
+    VRAM_START_BYTE = 0xF00;
+    FONT_START_BYTE = 0x050;
+
+    FPS = 60;
+    IPS = 700;
+    TIMER_FREQUENCY = 60;
+    UNHOOK_FPS = 0;
+
+    palette = malloc(sizeof(uint32_t) * 2);
+    palette[0] = 0x000000FF;
+    palette[1] = 0xFFFF00FF;
+
+    emu_ram = malloc(sizeof(uint8_t) * RAM_SIZE);
+
+    emu_stack_max = 16;
+    emu_stack = malloc(sizeof(uint16_t) * emu_stack_max);
+    emu_stack_top = -1;
+
+    PROGRAM_START_BYTE = 0x200;
+    PC = PROGRAM_START_BYTE;
+
+    delay_timer = 255;
+    sound_timer = 255;
+
+    V = malloc(sizeof(uint16_t) * 16);
+}
 
 SDL_Texture *screen_tex; // SDL texture that holds the contents of the screen
 uint8_t *screen_pixels; // array of screen pixels used to build screen_tex
@@ -962,9 +998,25 @@ void get_clock_time(struct timespec *ts) {
 //     tp->tv_nsec = (long) (system_time.wMilliseconds * 1000);
 //     return 0;
 // }
+
+void parse_args(int argc, char *argv[]) {
+    if (argc < 2) {
+        printf("Please specify a rom file\n");
+        exit(1);
+    }
+    else {
+        rom_path = malloc(sizeof(char) * (strlen(argv[1]) + 1));
+        strcpy(rom_path, argv[1]);
+        printf("%s\n", rom_path);
+    }
+}
  
 int main(int argc, char *argv[])
 {
+    initialize_settings();
+
+    parse_args(argc, argv);
+
 	if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
 		fprintf(stderr, "SDL_Init Error: %s\n", SDL_GetError());
 		return EXIT_FAILURE;
